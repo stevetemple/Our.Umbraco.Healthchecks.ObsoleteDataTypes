@@ -8,11 +8,11 @@ The intention is to install this into a V7 site and use the healthcheck to migra
 
 Current data types flagged as obsolete:
 
-Member Picker
-Multi Node Tree Picker
-Related Links
+* Member Picker
+* Multi Node Tree Picker
+* Related Links
 
 Flagged as obsolete with the option to "fix":
 
-Archetype => Nested Content (All the different settings are not fully supported, this was adequate for my uses)
-Our.Umbraco.NestedContent => Nested Content
+* Archetype, converts to Nested Content (All the different settings are not fully supported, this was adequate for my uses)
+* Our.Umbraco.NestedContent, converts to Nested Content
