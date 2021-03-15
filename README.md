@@ -11,6 +11,12 @@ Current data types flagged as obsolete:
 * Member Picker
 * Multi Node Tree Picker
 * Related Links
+* Umbraco.MultipleMediaPicker
+* Umbraco.ContentPickerAlias
+* Umbraco.DropDown
+* Umbraco.DropDownMultiple
+* Umbraco.DropdownlistPublishingKeys
+* Umbraco.DropdownlistMultiplePublishKeys
 
 Flagged as obsolete with the option to "fix":
 
