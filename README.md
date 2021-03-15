@@ -8,9 +8,9 @@ The intention is to install this into a V7 site and use the healthcheck to migra
 
 Current data types flagged as obsolete:
 
-* Member Picker
-* Multi Node Tree Picker
-* Related Links
+* Umbraco.MemberPicker
+* Umbraco.MultiNodeTreePicker
+* Umbraco.RelatedLinks
 * Umbraco.MultipleMediaPicker
 * Umbraco.ContentPickerAlias
 * Umbraco.DropDown
@@ -20,5 +20,5 @@ Current data types flagged as obsolete:
 
 Flagged as obsolete with the option to "fix":
 
-* Archetype, converts to Nested Content (All the different settings are not fully supported, this was adequate for my uses)
-* Our.Umbraco.NestedContent, converts to Nested Content
+* Imulus.Archetype, converts to Umbraco.NestedContent (All the different settings are not fully supported, this was adequate for my uses)
+* Our.Umbraco.NestedContent, converts to Umbraco.NestedContent
