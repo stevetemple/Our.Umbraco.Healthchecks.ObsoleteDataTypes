@@ -1,15 +1,15 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions;
+using Umbraco.Core;
 
 namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.KnownDataTypes
 {
 	public class ContentPickerAliasObsoleteDataType : IObsoleteDataType
 	{
 		public string Alias => "Umbraco.ContentPickerAlias";
-		public bool CanConvert => false;
-		public void Convert(string name) => throw new NotImplementedException();
+		public bool CanConvert => true;
+		public void Convert(string name)
+		{
+			new ConvertContentPickerAliasToContentPicker(ApplicationContext.Current.Services).Convert(name);
+		}
 	}
 }

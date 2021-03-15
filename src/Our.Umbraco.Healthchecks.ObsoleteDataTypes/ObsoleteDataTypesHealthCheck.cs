@@ -19,10 +19,16 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes
 			_obsoleteDataTypes = new IObsoleteDataType[]
 			{
 				new ArchetypeObsoleteDataType(),
-				new NestedContentObsoleteDataType(healthCheckContext.ApplicationContext.Services),
+				new ContentPickerAliasObsoleteDataType(),
+				new DropdownlistMultiplePublishKeysObsoleteDataType(),
+				new DropdownlistPublishingKeysObsoleteDataType(),
+				new DropDownMultipleObsoleteDataType(),
+				new DropDownObsoleteDataType(),
+				new MemberPickerObsoleteDataType(),
 				new MultiNodeTreePickerObsoleteDataType(),
-				new RelatedLinksObsoleteDataType(),
-				new MemberPickerObsoleteDataType()
+				new MultipleMediaPickerObsoleteDataType(),
+				new NestedContentObsoleteDataType(healthCheckContext.ApplicationContext.Services),
+				new RelatedLinksObsoleteDataType()
 			};
 			_dataTypeService = healthCheckContext.ApplicationContext.Services.DataTypeService;
 		}
@@ -84,61 +90,6 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes
 			return new HealthCheckAction[0];
 		}
 		
-	}
-
-	public class ArchetypeValue
-	{
-		public Guid Id { get; set; }
-		public IEnumerable<ArchetypeFieldset> Fieldsets { get; set; }
-	}
-
-	public class NestedContentPreValue
-	{
-		public string NcAlias { get; set; }
-		public string NcTabAlias { get; set; }
-		public string NameTemplate { get; set; }
-	}
-
-	public class ArchetypePreValue
-	{
-		public bool ShowAdvancedOptions { get; set; }
-		public bool StartWithButton { get; set; }
-		public bool HideFieldsetToolbar { get; set; }
-		public bool EnableMultipleFieldsets { get; set; }
-		public bool HideFieldsetControls { get; set; }
-		public bool HidePropertyLabel { get; set; }
-		public int? MaxFieldsets { get; set; }
-		public bool EnableCollapsing { get; set; }
-		public bool EnableCloning { get; set; }
-		public bool EnableDisabling { get; set; }
-		public bool EnableDeepDatatypeRequests { get; set; }
-		public bool EnablePublishing { get; set; }
-		public bool EnableMemberGroups { get; set; }
-		public bool EnableCrossDragging { get; set; }
-		public IEnumerable<ArchetypeFieldset> Fieldsets { get; set; }
-	}
-
-	public class ArchetypeFieldset
-	{
-		public string Alias { get; set; }
-		public bool Remove { get; set; }
-		public bool Collapse { get; set; }
-		public string LabelTemplate { get; set; }
-		public string Icon { get; set; }
-		public string Label { get; set; }
-		public IEnumerable<ArchetypeProperty> Properties { get; set; }
-	}
-
-	public class ArchetypeProperty
-	{
-		public string Alias { get; set; }
-		public bool Remove { get; set; }
-		public bool Collapse { get; set; }
-		public string Label { get; set; }
-		public string HelpText { get; set; }
-		public Guid DataTypeGuid { get; set; }
-		public string Value { get; set; }
-		public bool Required { get; set; }
 	}
 }
 

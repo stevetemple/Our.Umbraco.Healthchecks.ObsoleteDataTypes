@@ -215,6 +215,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Conversions\ConvertArchetypeToNestedContent.cs" />
+    <Compile Include="Conversions\ConvertContentPickerAliasToContentPicker.cs" />
     <Compile Include="KnownDataTypes\DropdownlistMultiplePublishKeysObsoleteDataType.cs" />
     <Compile Include="KnownDataTypes\DropDownMultipleObsoleteDataType.cs" />
     <Compile Include="KnownDataTypes\DropdownlistPublishingKeysObsoleteDataType.cs" />
