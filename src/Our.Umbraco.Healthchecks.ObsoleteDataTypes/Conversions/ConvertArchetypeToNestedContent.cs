@@ -17,10 +17,11 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 		private const string ArchetypeAlias = "Imulus.Archetype";
 		private const string NestedContentAlias = "Umbraco.NestedContent";
 
-		private IContractResolver _contractResolver = new DefaultContractResolver
-		{
-			NamingStrategy = new CamelCaseNamingStrategy()
-		};
+		private readonly JsonSerializerSettings _serializerSettings =
+			new JsonSerializerSettings {ContractResolver = new DefaultContractResolver
+			{
+				NamingStrategy = new CamelCaseNamingStrategy()
+			}};
 
 		public ConvertArchetypeToNestedContent(ServiceContext services)
 		{
@@ -29,53 +30,99 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 			_contentService = services.ContentService;
 		}
 
+		/// <summary>
+		/// Convert archetype data types with the given name
+		///
+		/// Creates new data types, including a content type to represent the Archetype
+		/// Then converts the content from one json format to the other
+		/// This searches inside other nested contents as well as just standard content
+		/// Finally swaps the data type itself over
+		/// </summary>
+		/// <param name="name"></param>
 		public void Convert(string name)
 		{
 			var archetypeDataType = _dataTypeService.GetDataTypeDefinitionByName(name);
 
-			var dataType = CreateNestedContentDataType(archetypeDataType);
+			var dataType = CreateNestedContentDataTypeBasedOnArchetype(archetypeDataType);
 			
 			var allContentTypes = _contentTypeService.GetAllContentTypes();
-			var archetypeContentTypes = allContentTypes.Where(c => c.PropertyTypes.Any(a => a.DataTypeDefinitionId == archetypeDataType.Id) || c.CompositionPropertyTypes.Any(a => a.DataTypeDefinitionId == archetypeDataType.Id));
+			var archetypeContentTypes = allContentTypes
+				.Where(c =>
+					c.PropertyTypes.Any(a => a.DataTypeDefinitionId == archetypeDataType.Id)
+					|| c.CompositionPropertyTypes.Any(a => a.DataTypeDefinitionId == archetypeDataType.Id));
+
+			ConvertContent(archetypeContentTypes, archetypeDataType);
+			ConvertDataType(archetypeContentTypes, archetypeDataType, dataType);
+		}
+
+		/// <summary>
+		/// Convert Archetype content to equivalent in Nested Content
+		/// </summary>
+		/// <param name="archetypeContentTypes"></param>
+		/// <param name="archetypeDataType"></param>
+		private void ConvertContent(IEnumerable<IContentType> archetypeContentTypes, IDataTypeDefinition archetypeDataType)
+		{
 			foreach (var archetypeContentType in archetypeContentTypes)
 			{
 				ConvertInsideNestedContents(archetypeContentType.Alias, Alias(archetypeDataType.Name + "nc"));
-				ConvertArchetypeValuesToNestedContent(archetypeContentType.Id, archetypeDataType.Id, Alias(archetypeDataType.Name + "nc"));
+				ConvertArchetypeValuesToNestedContent(archetypeContentType.Id, archetypeDataType.Id,
+					Alias(archetypeDataType.Name + "nc"));
 			}
+		}
 
-			foreach(var archetypeContentType in archetypeContentTypes)
+		/// <summary>
+		/// Convert the Archetype data types to their Nested Content equivalent
+		/// </summary>
+		/// <param name="archetypeContentTypes"></param>
+		/// <param name="archetypeDataType"></param>
+		/// <param name="dataType"></param>
+		private void ConvertDataType(IEnumerable<IContentType> archetypeContentTypes, IDataTypeDefinition archetypeDataType,
+			IDataTypeDefinition dataType)
+		{
+			foreach (var archetypeContentType in archetypeContentTypes)
 			{
 				foreach (var composition in archetypeContentType.ContentTypeComposition)
 				{
-					if (composition.PropertyTypes.Any(a => a.DataTypeDefinitionId == archetypeDataType.Id && a.PropertyEditorAlias == ArchetypeAlias))
+					if (composition.PropertyTypes.Any(IsArchetypeWithId(archetypeDataType.Id)))
 					{
 						var compositionContentType = _contentTypeService.GetContentType(composition.Id);
 
-						var propertyTypes = compositionContentType.PropertyTypes.Where(a => a.DataTypeDefinitionId == archetypeDataType.Id && a.PropertyEditorAlias == ArchetypeAlias).ToArray();
+						var propertyTypes = compositionContentType.PropertyTypes.Where(IsArchetypeWithId(archetypeDataType.Id))
+							.ToArray();
 						foreach (var propType in propertyTypes)
 						{
 							propType.DataTypeDefinitionId = dataType.Id;
 							propType.PropertyEditorAlias = NestedContentAlias;
 						}
+
 						_contentTypeService.Save(compositionContentType);
 					}
-
 				}
-				if (archetypeContentType.PropertyTypes.Any(a => a.DataTypeDefinitionId == archetypeDataType.Id && a.PropertyEditorAlias == ArchetypeAlias))
+
+				if (archetypeContentType.PropertyTypes.Any(IsArchetypeWithId(archetypeDataType.Id)))
 				{
-					var propertyTypes = archetypeContentType.PropertyTypes.Where(a => a.DataTypeDefinitionId == archetypeDataType.Id && a.PropertyEditorAlias == ArchetypeAlias).ToArray();
+					var propertyTypes = archetypeContentType.PropertyTypes.Where(IsArchetypeWithId(archetypeDataType.Id)).ToArray();
 
 					foreach (var propType in propertyTypes)
 					{
 						propType.DataTypeDefinitionId = dataType.Id;
 						propType.PropertyEditorAlias = NestedContentAlias;
 					}
+
 					_contentTypeService.Save(archetypeContentType);
 				}
 			}
 
 			_dataTypeService.Delete(archetypeDataType);
+
+			Func<PropertyType, bool> IsArchetypeWithId(int id)
+			{
+				return type => type.DataTypeDefinitionId == id && type.PropertyEditorAlias == ArchetypeAlias;
+			}
 		}
+
+		
+
 
 		private void ConvertArchetypeValuesToNestedContent(int oldContentTypeId, int archetypeDataTypeId, string newContentTypeAlias)
 		{
@@ -108,24 +155,26 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 				var vals = new List<Dictionary<string, string>>();
 				foreach (var fieldset in archetype.Fieldsets)
 				{
-					var dictionary = new Dictionary<string, string>();
-					dictionary.Add("key", Guid.NewGuid().ToString());
-					dictionary.Add("ncContentTypeAlias", newContentTypeAlias);
+					var dictionary = new Dictionary<string, string>
+					{
+						{"key", Guid.NewGuid().ToString()},
+						{"ncContentTypeAlias", newContentTypeAlias}
+					};
+
 					foreach (var prop in fieldset.Properties)
 					{
 						dictionary.Add(prop.Alias, prop.Value);
 					}
 					vals.Add(dictionary);
 				}
-				return JsonConvert.SerializeObject(vals,
-					new JsonSerializerSettings { ContractResolver = _contractResolver });
+				return JsonConvert.SerializeObject(vals, _serializerSettings);
 			} catch(Exception)
 			{
 				return value;
 			}
 		}
 
-		private IDataTypeDefinition CreateNestedContentDataType(IDataTypeDefinition archetypeDataType)
+		private IDataTypeDefinition CreateNestedContentDataTypeBasedOnArchetype(IDataTypeDefinition archetypeDataType)
 		{
 
 			var name = archetypeDataType.Name + " (NC)";
@@ -171,7 +220,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 								NameTemplate = archetypePreValue.Fieldsets.First().LabelTemplate
 							}
 				},
-				new JsonSerializerSettings { ContractResolver = _contractResolver })
+				_serializerSettings)
 			));
 			preValues.Add("minItems", new PreValue("0"));
 			preValues.Add("maxItems", new PreValue("0"));
@@ -212,7 +261,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 								continue;
 							}
 							// Deserialize nested content values then convert any of the type we're looking for
-							var nestedContent = JsonConvert.DeserializeObject<List<Dictionary<string, string>>>(System.Convert.ToString(prop.Value), new JsonSerializerSettings { ContractResolver = _contractResolver });
+							var nestedContent = JsonConvert.DeserializeObject<List<Dictionary<string, string>>>(System.Convert.ToString(prop.Value), _serializerSettings);
 							foreach(var entry in nestedContent)
 							{
 								if(entry["ncContentTypeAlias"] == alias)
@@ -225,7 +274,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 
 								}
 							}
-							prop.Value = JsonConvert.SerializeObject(nestedContent, new JsonSerializerSettings { ContractResolver = _contractResolver });
+							prop.Value = JsonConvert.SerializeObject(nestedContent, _serializerSettings);
 							changed = true;
 							
 						}
@@ -252,7 +301,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 			foreach (var dataType in nestedContents)
 			{
 				var preValues = _dataTypeService.GetPreValuesCollectionByDataTypeId(dataType.Id).FormatAsDictionary();
-				var contentTypes = JsonConvert.DeserializeObject<NestedContentPreValue[]>(preValues["contentTypes"].Value, new JsonSerializerSettings { ContractResolver = _contractResolver });
+				var contentTypes = JsonConvert.DeserializeObject<NestedContentPreValue[]>(preValues["contentTypes"].Value, _serializerSettings);
 				if (contentTypes.Any(n => n.NcAlias.Equals(alias, StringComparison.CurrentCultureIgnoreCase)))
 				{
 					yield return dataType.Id;
