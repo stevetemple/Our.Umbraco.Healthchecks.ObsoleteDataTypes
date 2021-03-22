@@ -21,7 +21,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 		}
 
 		private const string OldDataTypeAlias = "Umbraco.ContentPickerAlias";
-		private const string NewDataTypeAlias = "Umbraco.ContentPicker";
+		private const string NewDataTypeAlias = "Umbraco.ContentPicker2";
 
 		/// <summary>
 		/// Convert ContentPickerAlias data types with the given name
@@ -32,10 +32,16 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 		/// <param name="name"></param>
 		public void Convert(string name)
 		{
-			var oldDataTypeDefinition = _dataTypeService.GetDataTypeDefinitionByName(name);
-			oldDataTypeDefinition.PropertyEditorAlias = NewDataTypeAlias;
-			_dataTypeService.Save(oldDataTypeDefinition);
+			
 
+			var oldDataTypeDefinition = _dataTypeService.GetDataTypeDefinitionByName(name);
+			oldDataTypeDefinition.Name = oldDataTypeDefinition.Name + " (Obsolete)";
+			_dataTypeService.Save(oldDataTypeDefinition);
+			
+			var newDataTypeDefinition = new DataTypeDefinition(NewDataTypeAlias);
+			newDataTypeDefinition.Name = name;
+			_dataTypeService.SaveDataTypeAndPreValues(newDataTypeDefinition, new Dictionary<string, PreValue>());
+			
 			var allContentTypes = _contentTypeService.GetAllContentTypes();
 			var contentTypesToConvert = allContentTypes
 				.Where(c =>
@@ -43,8 +49,9 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 					|| c.CompositionPropertyTypes.Any(a => a.DataTypeDefinitionId == oldDataTypeDefinition.Id))
 				.ToArray();
 
-			ConvertContent(contentTypesToConvert, oldDataTypeDefinition);
-			ConvertDataType(contentTypesToConvert, oldDataTypeDefinition);
+			AddReplacementDataType(contentTypesToConvert, oldDataTypeDefinition, newDataTypeDefinition);
+			ConvertContent(contentTypesToConvert, oldDataTypeDefinition, newDataTypeDefinition);
+			DeleteOldDataType(oldDataTypeDefinition);
 		}
 
 		/// <summary>
@@ -52,7 +59,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 		/// </summary>
 		/// <param name="contentTypesToConvert"></param>
 		/// <param name="oldDataTypeDefinition"></param>
-		private void ConvertContent(IEnumerable<IContentType> contentTypesToConvert, IDataTypeDefinition oldDataTypeDefinition)
+		private void ConvertContent(IEnumerable<IContentType> contentTypesToConvert, IDataTypeDefinition oldDataTypeDefinition, IDataTypeDefinition newDataTypeDefinition)
 		{
 			foreach (var contentType in contentTypesToConvert)
 			{
@@ -66,7 +73,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 		/// </summary>
 		/// <param name="contentTypesToConvert"></param>
 		/// <param name="oldDataTypeDefinition"></param>
-		private void ConvertDataType(IEnumerable<IContentType> contentTypesToConvert, IDataTypeDefinition oldDataTypeDefinition)
+		private void AddReplacementDataType(IEnumerable<IContentType> contentTypesToConvert, IDataTypeDefinition oldDataTypeDefinition, IDataTypeDefinition newDataTypeDefinition)
 		{
 			foreach (var contentTypeToConvert in contentTypesToConvert)
 			{
@@ -78,54 +85,80 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 
 						var propertyTypes = compositionContentType.PropertyTypes.Where(IsOldDataTypeWithId(oldDataTypeDefinition.Id))
 							.ToArray();
+
 						foreach (var propType in propertyTypes)
 						{
-							propType.PropertyEditorAlias = NewDataTypeAlias;
+							var alias = propType.Alias;
+							var name = propType.Name;
+							propType.Name = propType.Name + " (Obsolete)";
+							propType.Alias = propType.Alias + "Obsolete";
+							var added = compositionContentType.AddPropertyType(new PropertyType(newDataTypeDefinition, alias) { Name =  name, Description = propType.Description, SortOrder =  propType.SortOrder, Mandatory = propType.Mandatory, ValidationRegExp = propType.ValidationRegExp },
+							compositionContentType.PropertyGroups.First(g => g.PropertyTypes.Contains(propType)).Name
+							);
+							
 						}
 
-						//_contentTypeService.Save(compositionContentType);
+						_contentTypeService.Save(compositionContentType);
 					}
 				}
 
 				if (contentTypeToConvert.PropertyTypes.Any(IsOldDataTypeWithId(oldDataTypeDefinition.Id)))
 				{
-					var propertyTypes = contentTypeToConvert.PropertyTypes.Where(IsOldDataTypeWithId(oldDataTypeDefinition.Id)).ToArray();
+					var propertyTypes = contentTypeToConvert.PropertyTypes.Where(IsOldDataTypeWithId(oldDataTypeDefinition.Id))
+						.ToArray();
 
 					foreach (var propType in propertyTypes)
 					{
-						propType.PropertyEditorAlias = NewDataTypeAlias;
+						var alias = propType.Alias;
+						var name = propType.Name;
+						propType.Name = propType.Name + " (Obsolete)";
+						propType.Alias = propType.Alias + "Obsolete";
+						var added = contentTypeToConvert.AddPropertyType(new PropertyType(newDataTypeDefinition, alias) { Name =  name, Description = propType.Description, SortOrder =  propType.SortOrder, Mandatory = propType.Mandatory, ValidationRegExp = propType.ValidationRegExp },
+							contentTypeToConvert.PropertyGroups.First(g => g.PropertyTypes.Contains(propType)).Name);
+						
 					}
-
-					//_contentTypeService.Save(contentTypeToConvert);
+					_contentTypeService.Save(contentTypeToConvert);
 				}
 			}
-
-			_dataTypeService.Delete(oldDataTypeDefinition);
-
+			
 			Func<PropertyType, bool> IsOldDataTypeWithId(int id)
 			{
 				return type => type.DataTypeDefinitionId == id && type.PropertyEditorAlias == OldDataTypeAlias;
 			}
 		}
 
+		/// <summary>
+		/// Delete the old data type
+		/// </summary>
+		/// <param name="oldDataTypeDefinition"></param>
+		private void DeleteOldDataType(IDataTypeDefinition oldDataTypeDefinition)
+		{
+			_dataTypeService.Delete(oldDataTypeDefinition);
+		}
+
+		/// <summary>
+		/// Convert the values
+		/// </summary>
+		/// <param name="oldContentTypeId"></param>
+		/// <param name="oldDataTypeId"></param>
 		private void ConvertOldValuesToNewerFormat(int oldContentTypeId, int oldDataTypeId)
 		{
 			var allContent = _contentService.GetContentOfContentType(oldContentTypeId).ToList();
 
 			foreach (var content in allContent)
 			{
-				var properties = content.Properties.Where(p => p.PropertyType.PropertyEditorAlias == OldDataTypeAlias && p.PropertyType.DataTypeDefinitionId == oldDataTypeId);
+				var properties = content.Properties.Where(p => p.PropertyType.DataTypeDefinitionId == oldDataTypeId);
 				foreach (var property in properties)
 				{
-					content.SetValue(property.Alias, ConvertValue(property.Value));
+					content.SetValue(property.Alias.Replace("Obsolete", ""), ConvertValue(property.Value));
 				}
 				if (content.Published)
 				{
-					//_contentService.SaveAndPublishWithStatus(content);
+					_contentService.SaveAndPublishWithStatus(content);
 				}
 				else
 				{
-					//_contentService.Save(content);
+					_contentService.Save(content);
 				}
 			}
 		}
