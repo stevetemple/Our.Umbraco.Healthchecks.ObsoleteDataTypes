@@ -32,8 +32,6 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 		/// <param name="name"></param>
 		public void Convert(string name)
 		{
-			
-
 			var oldDataTypeDefinition = _dataTypeService.GetDataTypeDefinitionByName(name);
 			oldDataTypeDefinition.Name = oldDataTypeDefinition.Name + " (Obsolete)";
 			_dataTypeService.Save(oldDataTypeDefinition);
@@ -77,6 +75,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 		{
 			foreach (var contentTypeToConvert in contentTypesToConvert)
 			{
+				var contentType = contentTypeToConvert;
 				foreach (var composition in contentTypeToConvert.ContentTypeComposition)
 				{
 					if (composition.PropertyTypes.Any(IsOldDataTypeWithId(oldDataTypeDefinition.Id)))
@@ -90,34 +89,43 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 						{
 							var alias = propType.Alias;
 							var name = propType.Name;
-							propType.Name = propType.Name + " (Obsolete)";
-							propType.Alias = propType.Alias + "Obsolete";
-							var added = compositionContentType.AddPropertyType(new PropertyType(newDataTypeDefinition, alias) { Name =  name, Description = propType.Description, SortOrder =  propType.SortOrder, Mandatory = propType.Mandatory, ValidationRegExp = propType.ValidationRegExp },
-							compositionContentType.PropertyGroups.First(g => g.PropertyTypes.Contains(propType)).Name
-							);
-							
-						}
 
-						_contentTypeService.Save(compositionContentType);
+							var pt = compositionContentType.PropertyTypes.First(p => p.Alias == alias);
+
+							pt.Name = propType.Name + " (Obsolete)";
+							pt.Alias = propType.Alias + "Obsolete";
+							_contentTypeService.Save(compositionContentType);
+							
+							compositionContentType = _contentTypeService.GetContentType(composition.Id);
+							compositionContentType.PropertyGroups.First(g => g.PropertyTypes.Contains(propType))
+								.PropertyTypes.Add(new PropertyType(newDataTypeDefinition, alias) { Name = name, Description = propType.Description, SortOrder = propType.SortOrder, Mandatory = propType.Mandatory, ValidationRegExp = propType.ValidationRegExp });
+							_contentTypeService.Save(compositionContentType);
+						}
 					}
 				}
 
-				if (contentTypeToConvert.PropertyTypes.Any(IsOldDataTypeWithId(oldDataTypeDefinition.Id)))
+				if (contentType.PropertyTypes.Any(IsOldDataTypeWithId(oldDataTypeDefinition.Id)))
 				{
-					var propertyTypes = contentTypeToConvert.PropertyTypes.Where(IsOldDataTypeWithId(oldDataTypeDefinition.Id))
+					var propertyTypes = contentType.PropertyTypes.Where(IsOldDataTypeWithId(oldDataTypeDefinition.Id))
 						.ToArray();
 
 					foreach (var propType in propertyTypes)
 					{
 						var alias = propType.Alias;
 						var name = propType.Name;
-						propType.Name = propType.Name + " (Obsolete)";
-						propType.Alias = propType.Alias + "Obsolete";
-						var added = contentTypeToConvert.AddPropertyType(new PropertyType(newDataTypeDefinition, alias) { Name =  name, Description = propType.Description, SortOrder =  propType.SortOrder, Mandatory = propType.Mandatory, ValidationRegExp = propType.ValidationRegExp },
-							contentTypeToConvert.PropertyGroups.First(g => g.PropertyTypes.Contains(propType)).Name);
-						
+
+						var pt = contentType.PropertyTypes.First(p => p.Alias == alias);
+
+						pt.Name = propType.Name + " (Obsolete)";
+						pt.Alias = propType.Alias + "Obsolete";
+						_contentTypeService.Save(contentType);
+
+						contentType = _contentTypeService.GetContentType(contentTypeToConvert.Id);
+
+						contentType.PropertyGroups.First(g => g.PropertyTypes.Contains(propType))
+							.PropertyTypes.Add(new PropertyType(newDataTypeDefinition, alias) { Name =  name, Description = propType.Description, SortOrder =  propType.SortOrder, Mandatory = propType.Mandatory, ValidationRegExp = propType.ValidationRegExp });
+						_contentTypeService.Save(contentType);
 					}
-					_contentTypeService.Save(contentTypeToConvert);
 				}
 			}
 			
@@ -150,7 +158,8 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 				var properties = content.Properties.Where(p => p.PropertyType.DataTypeDefinitionId == oldDataTypeId);
 				foreach (var property in properties)
 				{
-					content.SetValue(property.Alias.Replace("Obsolete", ""), ConvertValue(property.Value));
+					var alias = property.Alias.TrimEnd("Obsolete");
+					content.SetValue(alias, ConvertValue(property.Value));
 				}
 				if (content.Published)
 				{
@@ -165,6 +174,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 
 		private object ConvertValue(object value)
 		{
+			if (value == null) return null;
 			var content = _contentService.GetById(Int32.Parse(value.ToString()));
 			return content.GetUdi().ToString();
 		}
