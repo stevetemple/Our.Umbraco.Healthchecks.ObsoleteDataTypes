@@ -215,12 +215,15 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Conversions\ConvertArchetypeToNestedContent.cs" />
+    <Compile Include="Conversions\ConvertMultipleMediaPickerToMediaPicker2.cs" />
     <Compile Include="Conversions\ConvertContentPickerAliasToContentPicker.cs" />
+    <Compile Include="Conversions\GenericConversion.cs" />
     <Compile Include="KnownDataTypes\DropdownlistMultiplePublishKeysObsoleteDataType.cs" />
     <Compile Include="KnownDataTypes\DropDownMultipleObsoleteDataType.cs" />
     <Compile Include="KnownDataTypes\DropdownlistPublishingKeysObsoleteDataType.cs" />
     <Compile Include="KnownDataTypes\DropDownObsoleteDataType.cs" />
     <Compile Include="KnownDataTypes\ContentPickerAliasObsoleteDataType.cs" />
+    <Compile Include="KnownDataTypes\MediaPickerObsoleteDataType.cs" />
     <Compile Include="KnownDataTypes\MultipleMediaPickerObsoleteDataType.cs" />
     <Compile Include="ObsoleteDataTypesHealthCheck.cs" />
     <Compile Include="KnownDataTypes\ArchetypeObsoleteDataType.cs" />

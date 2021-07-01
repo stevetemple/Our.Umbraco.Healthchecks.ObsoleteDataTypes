@@ -10,13 +10,13 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 {
 	public class ConvertArchetypeToNestedContent
 	{
-		private readonly IDataTypeService _dataTypeService;
-		private readonly IContentTypeService _contentTypeService;
-		private readonly IContentService _contentService;
-
 		private const string ArchetypeAlias = "Imulus.Archetype";
 		private const string NestedContentAlias = "Umbraco.NestedContent";
 
+		private readonly IDataTypeService _dataTypeService;
+		private readonly IContentTypeService _contentTypeService;
+		private readonly IContentService _contentService;
+		
 		private readonly JsonSerializerSettings _serializerSettings =
 			new JsonSerializerSettings {ContractResolver = new DefaultContractResolver
 			{
