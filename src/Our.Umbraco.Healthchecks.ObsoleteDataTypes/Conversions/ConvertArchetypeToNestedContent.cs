@@ -10,13 +10,13 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 {
 	public class ConvertArchetypeToNestedContent
 	{
-		private readonly IDataTypeService _dataTypeService;
-		private readonly IContentTypeService _contentTypeService;
-		private readonly IContentService _contentService;
-
 		private const string ArchetypeAlias = "Imulus.Archetype";
 		private const string NestedContentAlias = "Umbraco.NestedContent";
 
+		private readonly IDataTypeService _dataTypeService;
+		private readonly IContentTypeService _contentTypeService;
+		private readonly IContentService _contentService;
+		
 		private readonly JsonSerializerSettings _serializerSettings =
 			new JsonSerializerSettings {ContractResolver = new DefaultContractResolver
 			{
@@ -43,7 +43,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 		{
 			var archetypeDataType = _dataTypeService.GetDataTypeDefinitionByName(name);
 
-			var dataType = CreateNestedContentDataTypeBasedOnArchetype(archetypeDataType);
+			var nestedContentDataType = CreateNestedContentDataTypeBasedOnArchetype(archetypeDataType);
 			
 			var allContentTypes = _contentTypeService.GetAllContentTypes();
 			var archetypeContentTypes = allContentTypes
@@ -52,7 +52,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 					|| c.CompositionPropertyTypes.Any(a => a.DataTypeDefinitionId == archetypeDataType.Id));
 
 			ConvertContent(archetypeContentTypes, archetypeDataType);
-			ConvertDataType(archetypeContentTypes, archetypeDataType, dataType);
+			ConvertDataType(archetypeContentTypes, archetypeDataType, nestedContentDataType);
 		}
 
 		/// <summary>
@@ -75,9 +75,9 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 		/// </summary>
 		/// <param name="archetypeContentTypes"></param>
 		/// <param name="archetypeDataType"></param>
-		/// <param name="dataType"></param>
+		/// <param name="nestedContentDataType"></param>
 		private void ConvertDataType(IEnumerable<IContentType> archetypeContentTypes, IDataTypeDefinition archetypeDataType,
-			IDataTypeDefinition dataType)
+			IDataTypeDefinition nestedContentDataType)
 		{
 			foreach (var archetypeContentType in archetypeContentTypes)
 			{
@@ -91,7 +91,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 							.ToArray();
 						foreach (var propType in propertyTypes)
 						{
-							propType.DataTypeDefinitionId = dataType.Id;
+							propType.DataTypeDefinitionId = nestedContentDataType.Id;
 							propType.PropertyEditorAlias = NestedContentAlias;
 						}
 
@@ -105,7 +105,7 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 
 					foreach (var propType in propertyTypes)
 					{
-						propType.DataTypeDefinitionId = dataType.Id;
+						propType.DataTypeDefinitionId = nestedContentDataType.Id;
 						propType.PropertyEditorAlias = NestedContentAlias;
 					}
 
@@ -308,5 +308,60 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 				}
 			}
 		}
+	}
+
+	public class ArchetypeValue
+	{
+		public Guid Id { get; set; }
+		public IEnumerable<ArchetypeFieldset> Fieldsets { get; set; }
+	}
+
+	public class NestedContentPreValue
+	{
+		public string NcAlias { get; set; }
+		public string NcTabAlias { get; set; }
+		public string NameTemplate { get; set; }
+	}
+
+	public class ArchetypePreValue
+	{
+		public bool ShowAdvancedOptions { get; set; }
+		public bool StartWithButton { get; set; }
+		public bool HideFieldsetToolbar { get; set; }
+		public bool EnableMultipleFieldsets { get; set; }
+		public bool HideFieldsetControls { get; set; }
+		public bool HidePropertyLabel { get; set; }
+		public int? MaxFieldsets { get; set; }
+		public bool EnableCollapsing { get; set; }
+		public bool EnableCloning { get; set; }
+		public bool EnableDisabling { get; set; }
+		public bool EnableDeepDatatypeRequests { get; set; }
+		public bool EnablePublishing { get; set; }
+		public bool EnableMemberGroups { get; set; }
+		public bool EnableCrossDragging { get; set; }
+		public IEnumerable<ArchetypeFieldset> Fieldsets { get; set; }
+	}
+
+	public class ArchetypeFieldset
+	{
+		public string Alias { get; set; }
+		public bool Remove { get; set; }
+		public bool Collapse { get; set; }
+		public string LabelTemplate { get; set; }
+		public string Icon { get; set; }
+		public string Label { get; set; }
+		public IEnumerable<ArchetypeProperty> Properties { get; set; }
+	}
+
+	public class ArchetypeProperty
+	{
+		public string Alias { get; set; }
+		public bool Remove { get; set; }
+		public bool Collapse { get; set; }
+		public string Label { get; set; }
+		public string HelpText { get; set; }
+		public Guid DataTypeGuid { get; set; }
+		public string Value { get; set; }
+		public bool Required { get; set; }
 	}
 }
