@@ -12,7 +12,6 @@ Current data types flagged as obsolete:
 * Umbraco.MultiNodeTreePicker
 * Umbraco.RelatedLinks
 * Umbraco.MultipleMediaPicker
-* Umbraco.ContentPickerAlias
 * Umbraco.DropDown
 * Umbraco.DropDownMultiple
 * Umbraco.DropdownlistPublishingKeys
@@ -22,3 +21,5 @@ Flagged as obsolete with the option to "fix":
 
 * Imulus.Archetype, converts to Umbraco.NestedContent (All the different settings are not fully supported, this was adequate for my uses)
 * Our.Umbraco.NestedContent, converts to Umbraco.NestedContent
+* Umbraco.ContentPickerAlias, converts to Umbraco.ContentPicker
+* Umbraco.MultipleMediaPicker, converts to Umbraco.MediaPicker2
