@@ -21,5 +21,5 @@ Flagged as obsolete with the option to "fix":
 
 * Imulus.Archetype, converts to Umbraco.NestedContent (All the different settings are not fully supported, this was adequate for my uses)
 * Our.Umbraco.NestedContent, converts to Umbraco.NestedContent
-* Umbraco.ContentPickerAlias, converts to Umbraco.ContentPicker
+* Umbraco.ContentPickerAlias, converts to Umbraco.ContentPicker2
 * Umbraco.MultipleMediaPicker, converts to Umbraco.MediaPicker2
