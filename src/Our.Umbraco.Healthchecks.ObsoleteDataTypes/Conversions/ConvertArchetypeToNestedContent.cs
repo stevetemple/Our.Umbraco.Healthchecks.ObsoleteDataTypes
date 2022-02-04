@@ -5,6 +5,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using Umbraco.Core.Models;
 using Umbraco.Core.Services;
+using Umbraco.Core.Logging;
+using Umbraco.Web;
 
 namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 {
@@ -130,48 +132,95 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 
 			foreach (var content in allContent)
 			{
+				var changedProperties = new List<string>();
+
+				//Quick cleanse of empty Archetype or Nested Content values where the array just contains {"fieldsets":[]}
+				var emptyArchetypeProperties = content.Properties.Where(p => p.PropertyType.PropertyEditorAlias == ArchetypeAlias && (p.Value?.ToString() ?? "") == "{\"fieldsets\":[]}");
+				foreach (var property in emptyArchetypeProperties)
+				{
+					content.SetValue(property.Alias, null);
+					changedProperties.Add(property.Alias);
+				}
+
 				var properties = content.Properties.Where(p => p.PropertyType.PropertyEditorAlias == ArchetypeAlias && p.PropertyType.DataTypeDefinitionId == archetypeDataTypeId);
 				foreach (var property in properties)
 				{
-					content.SetValue(property.Alias, ConvertArchetypeJsonToNestedContentJson(newContentTypeAlias, content.GetValue<string>(property.Alias)));
+					var value = ConvertArchetypeJsonToNestedContentJson(newContentTypeAlias, content.GetValue<string>(property.Alias));
+					content.SetValue(property.Alias, value);
+					changedProperties.Add(property.Alias);
 				}
-				if (content.Published)
+
+				try
 				{
-					_contentService.SaveAndPublishWithStatus(content);
+					if (content.Published)
+					{
+						var publishedContent = UmbracoContext.Current.ContentCache.GetById(content.Id);
+						_contentService.SaveAndPublishWithStatus(content);
+						LogHelper.Info(this.GetType(), $"Successful: {publishedContent.Url} -: Changed Properties: {string.Join(",", changedProperties)}");
+					}
+					else
+					{
+						_contentService.Save(content);
+					}
 				}
-				else
+				catch (Exception ex)
 				{
-					_contentService.Save(content);
+					LogHelper.Error(this.GetType(), $"Failed: {content.Name} -: Changed Properties: {string.Join(",", changedProperties)}", ex);
+
 				}
 			}
 		}
 
 		private string ConvertArchetypeJsonToNestedContentJson(string newContentTypeAlias, string value)
 		{
+
 			try
 			{
-				var archetype = JsonConvert.DeserializeObject<ArchetypeValue>(value);
-
-				var vals = new List<Dictionary<string, string>>();
-				foreach (var fieldset in archetype.Fieldsets)
+				if (!string.IsNullOrEmpty(value))
 				{
-					var dictionary = new Dictionary<string, string>
+					var vals = new List<Dictionary<string, string>>();
+					var archetype = JsonConvert.DeserializeObject<ArchetypeValue>(value);
+					var contentType = _contentTypeService.GetContentType(newContentTypeAlias);
+
+					var i = 1;
+					foreach (var fieldset in archetype.Fieldsets)
+					{
+						var dictionary = new Dictionary<string, string>
 					{
 						{"key", Guid.NewGuid().ToString()},
+						{"name", $"Item {i}"},
 						{"ncContentTypeAlias", newContentTypeAlias}
 					};
 
-					foreach (var prop in fieldset.Properties)
-					{
-						dictionary.Add(prop.Alias, prop.Value);
+						foreach (var prop in fieldset.Properties)
+						{
+							var propValue = prop.Value;
+
+							// If a child Archetype property was nested within a parent Archetype property,
+							// convert the Json to a Nested Content format by rerunning this method on the child property.   
+							if ((propValue?.ToString() ?? "").StartsWith("{\"fieldsets\":["))
+							{
+								var propertyType = contentType.PropertyTypes.FirstOrDefault(pt => pt.Alias.Equals(prop.Alias));
+								var dataTypePreValues = _dataTypeService.GetPreValuesCollectionByDataTypeId(propertyType.DataTypeDefinitionId);
+								var preValues = _dataTypeService.GetPreValuesCollectionByDataTypeId(propertyType.DataTypeDefinitionId).FormatAsDictionary();
+								var contentTypes = JsonConvert.DeserializeObject<NestedContentPreValue[]>(preValues["contentTypes"].Value, _serializerSettings);
+								propValue = ConvertArchetypeJsonToNestedContentJson(contentTypes[0].NcAlias, propValue);
+							}
+
+							dictionary.Add(prop.Alias, propValue);
+						}
+						vals.Add(dictionary);
+						i++;
 					}
-					vals.Add(dictionary);
+					return JsonConvert.SerializeObject(vals, _serializerSettings);
 				}
-				return JsonConvert.SerializeObject(vals, _serializerSettings);
-			} catch(Exception)
-			{
-				return value;
 			}
+			catch (Exception ex)
+			{
+				LogHelper.Error(this.GetType(), $"ConvertArchetypeJsonToNestedContentJson({newContentTypeAlias}, {value})", ex);
+			}
+
+			return null;
 		}
 
 		private IDataTypeDefinition CreateNestedContentDataTypeBasedOnArchetype(IDataTypeDefinition archetypeDataType)
@@ -200,6 +249,12 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 				foreach (var prop in fieldset.Properties)
 				{
 					var definition = _dataTypeService.GetDataTypeDefinitionById(prop.DataTypeGuid);
+
+					// If the property is Archetype then also convert to Nested Content
+					if (definition.PropertyEditorAlias.Equals(ArchetypeAlias))
+					{
+						definition = CreateNestedContentDataTypeBasedOnArchetype(definition);
+					}
 					propertyGroup.PropertyTypes.Add(new PropertyType(definition) { Name = prop.Label, Alias = prop.Alias, Mandatory = prop.Required, Description = prop.HelpText });
 				}
 				contentType.PropertyGroups.Add(propertyGroup);
@@ -234,7 +289,12 @@ namespace Our.Umbraco.HealthChecks.ObsoleteDataTypes.Conversions
 
 		private string Alias(string text)
 		{
-			return text.ToLower().Replace(" ", "");
+			// Generate an Umbraco alias by creating a dummy ContentType object, but doesn't commit it to the DB.
+			var alias = text.ToLower().Replace(" ", "");
+			var contentType = new ContentType(-1);
+			contentType.Name = "n/a";
+			contentType.Alias = alias;
+			return contentType.Alias;
 		}
 
 		private void ConvertInsideNestedContents(string alias, string ncAlias)
